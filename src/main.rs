@@ -1,3 +1,4 @@
+#[macro_use]
 extern crate clap;
 extern crate clap_log_flag;
 extern crate clap_verbosity_flag;
@@ -39,6 +40,13 @@ lazy_static! {
     pub static ref LOG_FILE: String = format!("{}/.emailFinder/emailFinder.log", HOME_DIR.display());
 }
 
+arg_enum! {
+    #[derive(Debug)]
+    enum SearchEngine {
+        google
+    }
+}
+
 #[derive(Debug, Serialize)]
 struct Record {
     link: String,
@@ -48,30 +56,32 @@ struct Record {
 
 #[derive(StructOpt, Debug)]
 #[structopt(name = "email_finder", about = "Search email adress")]
-pub enum Finder {
+pub struct Finder {
 
-    #[structopt(name = "google", about = "Search from google")]
-    Google {
-        /// Search 
-        #[structopt(name = "search", long, short)]
-        search: String,
+    /// Search engine
+    #[structopt(raw(possible_values = "&SearchEngine::variants()", case_insensitive = "false"))]
+    engine: String,
 
-        #[structopt(name = "limit", long, short)]
-        limit: u32,
+    /// Search pattern
+    #[structopt(name = "search", long, short)]
+    search: String,
 
-        #[structopt(name = "depth", long, short)]
-        depth: u32,
+    /// Limit of result for search
+    #[structopt(name = "limit", long, short)]
+    limit: u32,
 
-        #[structopt(flatten)]
-        output: Output,
+    /// Depth maximun for each domain
+    #[structopt(name = "depth", long, short)]
+    depth: u32,
 
-        #[structopt(flatten)]
-        verbose: clap_verbosity_flag::Verbosity,
+    #[structopt(flatten)]
+    output: Output,
 
-        #[structopt(flatten)]
-        log: clap_log_flag::Log,
+    #[structopt(flatten)]
+    verbose: clap_verbosity_flag::Verbosity,
 
-    }
+    #[structopt(flatten)]
+    log: clap_log_flag::Log
 }
 
 #[derive(StructOpt, Debug)]
@@ -83,21 +93,16 @@ pub struct Output {
 
 fn main() -> Result<(), String> {
 
-
     let mut result: HashMap<String, (google::Section, HashSet<String>)> = HashMap::new();
+    let finder = Finder::from_args();
 
-    match Finder::from_args() {
-        Finder::Google { search, limit, depth, output, verbose, log } => {
+    finder.log.log_all(Some(finder.verbose.log_level()));
 
-            log.log_all(Some(verbose.log_level()));
-
-            for section in google::search_from_google(&search, limit)? {
-                result.insert(section.link.clone(), (section.clone(), find::find(&section.link, depth)));
-            }
-
-            write(result, output);
-        }
+    for section in google::search_from_google(&finder.search, finder.limit)? {
+        result.insert(section.link.clone(), (section.clone(), find::find(&section.link, finder.depth)));
     }
+
+    write(result, finder.output);
 
     Ok(())
 }
