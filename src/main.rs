@@ -115,7 +115,9 @@ fn write(result: HashMap<String, (google::Section, HashSet<String>)>, output: Ou
             .create_new(true)
             .open(output.file.unwrap()).unwrap();
 
-        let mut wtr = csv::Writer::from_writer(file);
+        let mut wtr = csv::WriterBuilder::new()
+                    .delimiter(b'\t')
+                    .from_writer(file);
 
         for (link, (section, emails)) in result {
             for email in emails {
